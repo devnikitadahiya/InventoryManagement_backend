@@ -43,8 +43,8 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Import routes (we'll create these next)
-// app.use('/api/auth', require('./routes/auth'));
-// app.use('/api/products', require('./routes/products'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/products', require('./routes/products'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
