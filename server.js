@@ -5,6 +5,9 @@ require('dotenv').config();
 // Import database connection
 const db = require('./config/database');
 
+// Auto-setup: database + tables + sample data (runs once on start)
+const setupDatabase = require('./config/dbSetup');
+
 const app = express();
 
 // Middleware
@@ -63,10 +66,13 @@ app.use((err, req, res, next) => {
 
 if (process.env.NODE_ENV !== 'test') {
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-        console.log(`🚀 Server is running on http://localhost:${PORT}`);
-        console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-        console.log(`✅ Ready to accept connections!`);
+    // Pehle database setup karo, phir server start karo
+    setupDatabase().then(() => {
+        app.listen(PORT, () => {
+            console.log(`🚀 Server is running on http://localhost:${PORT}`);
+            console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+            console.log(`✅ Ready to accept connections!`);
+        });
     });
 }
 
