@@ -10,6 +10,88 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
+const DEMO_USERS = [
+    {
+        full_name: 'Nikita Dahiya',
+        email: 'admin@inventory.com',
+        password_hash: '$2b$10$otf1b.XJYX5q9I23rZoJSeM/diwuaDRqNrc9jK2cijNzgGE8wZB2S',
+        role: 'admin',
+        phone: '9876543210',
+        is_active: true,
+    },
+    {
+        full_name: 'Rohan Sharma',
+        email: 'manager@inventory.com',
+        password_hash: '$2b$10$tTEDMkERvwtIOfsus5NpTeTkTvIq9YEYj0X51Km6vQwk.4JWWk9Xy',
+        role: 'manager',
+        phone: '9876543211',
+        is_active: true,
+    },
+    {
+        full_name: 'Rahul Gupta',
+        email: 'rahul@inventory.com',
+        password_hash: '$2b$10$Dtv9jt0WKbPhUUiovTIAh.sXNbOF36FcafcgPZo0CdXTFiBd9PMwS',
+        role: 'staff',
+        phone: '9876543212',
+        is_active: true,
+    },
+    {
+        full_name: 'Priya Mehta',
+        email: 'priya@inventory.com',
+        password_hash: '$2b$10$Dtv9jt0WKbPhUUiovTIAh.sXNbOF36FcafcgPZo0CdXTFiBd9PMwS',
+        role: 'staff',
+        phone: '9876543213',
+        is_active: true,
+    },
+    {
+        full_name: 'Amit Verma',
+        email: 'amit@inventory.com',
+        password_hash: '$2b$10$Dtv9jt0WKbPhUUiovTIAh.sXNbOF36FcafcgPZo0CdXTFiBd9PMwS',
+        role: 'staff',
+        phone: '9876543214',
+        is_active: false,
+    },
+];
+
+async function ensureDemoUsers(connection) {
+    for (const demoUser of DEMO_USERS) {
+        const [rows] = await connection.query(
+            'SELECT user_id FROM users WHERE email = ?',
+            [demoUser.email]
+        );
+
+        if (rows.length > 0) {
+            await connection.query(
+                `UPDATE users
+                 SET full_name = ?, password_hash = ?, role = ?, phone = ?, is_active = ?
+                 WHERE email = ?`,
+                [
+                    demoUser.full_name,
+                    demoUser.password_hash,
+                    demoUser.role,
+                    demoUser.phone,
+                    demoUser.is_active,
+                    demoUser.email,
+                ]
+            );
+            continue;
+        }
+
+        await connection.query(
+            `INSERT INTO users (full_name, email, password_hash, role, phone, is_active)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+                demoUser.full_name,
+                demoUser.email,
+                demoUser.password_hash,
+                demoUser.role,
+                demoUser.phone,
+                demoUser.is_active,
+            ]
+        );
+    }
+}
+
 async function setupDatabase() {
     let connection;
 
@@ -201,28 +283,20 @@ async function setupDatabase() {
 
         console.log('✅ All tables ready');
 
-        // Step 4: Sample data check — agar users table khali hai to data dalo
-        const [[{ count }]] = await connection.query('SELECT COUNT(*) AS count FROM users');
+        // Step 4: Demo login accounts ko hamesha valid rakho
+        await ensureDemoUsers(connection);
+        console.log('✅ Demo user accounts ready');
+
+        // Step 5: Sample data check — agar products pehle se hain to heavy seed skip karo
+        const [[{ count }]] = await connection.query('SELECT COUNT(*) AS count FROM products');
 
         if (count > 0) {
-            // Data pehle se hai — kuch mat karo
-            console.log(`✅ Sample data already present (${count} users found) — skipping seed`);
+            console.log(`✅ Product sample data already present (${count} products found) — skipping bulk seed`);
             return;
         }
 
-        // Step 5: Sample data insert karo
+        // Step 6: Sample data insert karo
         console.log('📦 Inserting sample data...');
-
-        // Users
-        // Passwords: admin123 / manager123 / staff123
-        await connection.query(`
-            INSERT INTO users (full_name, email, password_hash, role, phone, is_active) VALUES
-            ('Nikita Dahiya',  'admin@inventory.com',   '$2b$10$otf1b.XJYX5q9I23rZoJSeM/diwuaDRqNrc9jK2cijNzgGE8wZB2S', 'admin',   '9876543210', TRUE),
-            ('Rohan Sharma',   'manager@inventory.com', '$2b$10$tTEDMkERvwtIOfsus5NpTeTkTvIq9YEYj0X51Km6vQwk.4JWWk9Xy', 'manager', '9876543211', TRUE),
-            ('Rahul Gupta',    'rahul@inventory.com',   '$2b$10$Dtv9jt0WKbPhUUiovTIAh.sXNbOF36FcafcgPZo0CdXTFiBd9PMwS', 'staff',   '9876543212', TRUE),
-            ('Priya Mehta',    'priya@inventory.com',   '$2b$10$Dtv9jt0WKbPhUUiovTIAh.sXNbOF36FcafcgPZo0CdXTFiBd9PMwS', 'staff',   '9876543213', TRUE),
-            ('Amit Verma',     'amit@inventory.com',    '$2b$10$Dtv9jt0WKbPhUUiovTIAh.sXNbOF36FcafcgPZo0CdXTFiBd9PMwS', 'staff',   '9876543214', FALSE)
-        `);
 
         // Categories
         await connection.query(`
