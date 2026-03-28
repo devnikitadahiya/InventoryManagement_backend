@@ -117,7 +117,7 @@ const login = async (req, res) => {
 const getUsers = async (req, res) => {
     try {
         const [users] = await db.query(
-            'SELECT user_id, full_name, email, role, created_at FROM users ORDER BY created_at DESC'
+            'SELECT user_id, full_name, email, role, is_active, created_at FROM users ORDER BY created_at DESC'
         );
         res.json({ success: true, data: users });
     } catch (error) {
@@ -126,4 +126,108 @@ const getUsers = async (req, res) => {
     }
 };
 
-module.exports = { register, login, getUsers };
+const updateUserRole = async (req, res) => {
+    try {
+        const userId = parseInt(req.params.user_id, 10);
+        const { role } = req.body;
+
+        if (!Number.isInteger(userId) || userId <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'A valid user_id is required'
+            });
+        }
+
+        if (!['admin', 'manager', 'staff'].includes(role)) {
+            return res.status(400).json({
+                success: false,
+                message: 'role must be one of: admin, manager, staff'
+            });
+        }
+
+        if (req.user.id === userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot change your own role'
+            });
+        }
+
+        const [result] = await db.query(
+            'UPDATE users SET role = ? WHERE user_id = ? AND is_active = TRUE',
+            [role, userId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Active user not found'
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: 'User role updated successfully ✅',
+            data: {
+                user_id: userId,
+                role
+            }
+        });
+    } catch (error) {
+        console.error('Update user role error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error occurred',
+            error: error.message
+        });
+    }
+};
+
+const deactivateUser = async (req, res) => {
+    try {
+        const userId = parseInt(req.params.user_id, 10);
+
+        if (!Number.isInteger(userId) || userId <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'A valid user_id is required'
+            });
+        }
+
+        if (req.user.id === userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot deactivate your own account'
+            });
+        }
+
+        const [result] = await db.query(
+            'UPDATE users SET is_active = FALSE WHERE user_id = ? AND is_active = TRUE',
+            [userId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Active user not found'
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: 'User deactivated successfully ✅',
+            data: {
+                user_id: userId,
+                is_active: false
+            }
+        });
+    } catch (error) {
+        console.error('Deactivate user error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error occurred',
+            error: error.message
+        });
+    }
+};
+
+module.exports = { register, login, getUsers, updateUserRole, deactivateUser };

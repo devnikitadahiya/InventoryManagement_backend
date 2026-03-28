@@ -54,4 +54,12 @@ router.get('/me', verifyToken, (req, res) => {
 // GET /api/auth/users
 router.get('/users', verifyToken, requireRole('admin', 'manager'), authController.getUsers);
 
+// Update user role — admin only
+// PUT /api/auth/users/:user_id/role
+router.put('/users/:user_id/role', verifyToken, requireRole('admin'), authController.updateUserRole);
+
+// Deactivate user — admin only
+// PUT /api/auth/users/:user_id/deactivate
+router.put('/users/:user_id/deactivate', verifyToken, requireRole('admin'), authController.deactivateUser);
+
 module.exports = router;

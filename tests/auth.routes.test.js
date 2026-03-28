@@ -121,7 +121,7 @@ describe('Auth routes', () => {
 
   test('GET /api/auth/users returns list for admin', async () => {
     db.query.mockResolvedValueOnce([[
-      { user_id: 1, full_name: 'Admin', email: 'admin@test.com', role: 'admin', created_at: '2026-01-01' },
+      { user_id: 1, full_name: 'Admin', email: 'admin@test.com', role: 'admin', is_active: true, created_at: '2026-01-01' },
     ]]);
 
     const response = await request(app)
@@ -135,7 +135,7 @@ describe('Auth routes', () => {
 
   test('GET /api/auth/users returns list for manager', async () => {
     db.query.mockResolvedValueOnce([[
-      { user_id: 2, full_name: 'Staff', email: 'staff@test.com', role: 'staff', created_at: '2026-01-01' },
+      { user_id: 2, full_name: 'Staff', email: 'staff@test.com', role: 'staff', is_active: true, created_at: '2026-01-01' },
     ]]);
 
     const response = await request(app)
@@ -152,6 +152,59 @@ describe('Auth routes', () => {
       .set('Authorization', `Bearer ${makeToken('staff')}`);
 
     expect(response.status).toBe(403);
+  });
+
+  test('PUT /api/auth/users/:id/role allows admin to update role', async () => {
+    db.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    const response = await request(app)
+      .put('/api/auth/users/7/role')
+      .set('Authorization', `Bearer ${makeToken('admin')}`)
+      .send({ role: 'manager' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.role).toBe('manager');
+  });
+
+  test('PUT /api/auth/users/:id/role blocks manager with 403', async () => {
+    const response = await request(app)
+      .put('/api/auth/users/7/role')
+      .set('Authorization', `Bearer ${makeToken('manager')}`)
+      .send({ role: 'staff' });
+
+    expect(response.status).toBe(403);
+  });
+
+  test('PUT /api/auth/users/:id/role rejects invalid role', async () => {
+    const response = await request(app)
+      .put('/api/auth/users/7/role')
+      .set('Authorization', `Bearer ${makeToken('admin')}`)
+      .send({ role: 'owner' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain('role must be one of');
+  });
+
+  test('PUT /api/auth/users/:id/deactivate allows admin to deactivate user', async () => {
+    db.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    const response = await request(app)
+      .put('/api/auth/users/8/deactivate')
+      .set('Authorization', `Bearer ${makeToken('admin')}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.is_active).toBe(false);
+  });
+
+  test('PUT /api/auth/users/:id/deactivate rejects self-deactivation', async () => {
+    const response = await request(app)
+      .put('/api/auth/users/1/deactivate')
+      .set('Authorization', `Bearer ${makeToken('admin')}`);
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain('cannot deactivate your own account');
   });
 });
 
