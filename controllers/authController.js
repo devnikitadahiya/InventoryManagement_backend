@@ -114,4 +114,16 @@ const login = async (req, res) => {
     }
 };
 
-module.exports = { register, login };
+const getUsers = async (req, res) => {
+    try {
+        const [users] = await db.query(
+            'SELECT user_id, full_name, email, role, created_at FROM users ORDER BY created_at DESC'
+        );
+        res.json({ success: true, data: users });
+    } catch (error) {
+        console.error('Get users error:', error);
+        res.status(500).json({ success: false, message: 'Server error occurred', error: error.message });
+    }
+};
+
+module.exports = { register, login, getUsers };
