@@ -78,7 +78,14 @@ describe('Auth routes', () => {
   test('POST /api/auth/login should return token for valid credentials', async () => {
     const passwordHash = await bcrypt.hash('pass1234', 10);
     db.query.mockResolvedValueOnce([[
-      { user_id: 7, full_name: 'Admin User', email: 'admin@inventory.com', role: 'admin', password_hash: passwordHash },
+      {
+        user_id: 7,
+        full_name: 'Admin User',
+        email: 'admin@inventory.com',
+        role: 'admin',
+        is_active: 1,
+        password_hash: passwordHash,
+      },
     ]]);
 
     const response = await request(app)
@@ -102,6 +109,28 @@ describe('Auth routes', () => {
     expect(response.body.success).toBe(false);
   });
 
+  test('POST /api/auth/login should reject deactivated user', async () => {
+    const passwordHash = await bcrypt.hash('pass1234', 10);
+    db.query.mockResolvedValueOnce([[
+      {
+        user_id: 9,
+        full_name: 'Inactive User',
+        email: 'inactive@inventory.com',
+        role: 'staff',
+        is_active: 0,
+        password_hash: passwordHash,
+      },
+    ]]);
+
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'inactive@inventory.com', password: 'pass1234' });
+
+    expect(response.status).toBe(403);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('deactivated');
+  });
+
   test('GET /api/auth/me should reject missing token', async () => {
     const response = await request(app).get('/api/auth/me');
 
@@ -117,6 +146,32 @@ describe('Auth routes', () => {
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(response.body.user.role).toBe('manager');
+  });
+
+  test('GET /api/auth/me should reject invalid token', async () => {
+    const response = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', 'Bearer invalid-token-value');
+
+    expect(response.status).toBe(401);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('Invalid or expired token');
+  });
+
+  test('GET /api/auth/me should reject expired token with 401', async () => {
+    const expiredToken = jwt.sign(
+      { id: 55, email: 'expired@test.com', role: 'manager' },
+      process.env.JWT_SECRET,
+      { expiresIn: '-1s' }
+    );
+
+    const response = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${expiredToken}`);
+
+    expect(response.status).toBe(401);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('Invalid or expired token');
   });
 
   test('GET /api/auth/users returns list for admin', async () => {

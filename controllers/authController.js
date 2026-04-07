@@ -76,6 +76,14 @@ const login = async (req, res) => {
         }
 
         const user = users[0];
+
+        if (!user.is_active) {
+            return res.status(403).json({
+                success: false,
+                message: 'Your account is deactivated. Please contact admin'
+            });
+        }
+
         const isPasswordCorrect = await bcrypt.compare(password, user.password_hash);
 
         if (!isPasswordCorrect) {

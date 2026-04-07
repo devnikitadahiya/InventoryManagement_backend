@@ -78,6 +78,86 @@ describe('Products routes', () => {
     expect(response.body.data.product_id).toBe(40);
   });
 
+  test('POST /api/products should reject negative unit_price', async () => {
+    const response = await request(app)
+      .post('/api/products')
+      .set('Authorization', `Bearer ${getToken()}`)
+      .send({
+        sku: 'SKU041',
+        product_name: 'Invalid Product',
+        unit_price: -1,
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('unit_price');
+  });
+
+  test('POST /api/products should reject very large numeric values', async () => {
+    const response = await request(app)
+      .post('/api/products')
+      .set('Authorization', `Bearer ${getToken()}`)
+      .send({
+        sku: 'SKU-BIG-001',
+        product_name: 'Enterprise Rack',
+        unit_price: 1000000001,
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('cannot exceed');
+  });
+
+  test('POST /api/products should reject unsafe characters in product_name', async () => {
+    const response = await request(app)
+      .post('/api/products')
+      .set('Authorization', `Bearer ${getToken()}`)
+      .send({
+        sku: 'SKU-SAFE-001',
+        product_name: '<script>alert(1)</script>',
+        unit_price: 3000,
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('unsupported characters');
+  });
+
+  test('PUT /api/products/:id should update an existing product', async () => {
+    db.query
+      .mockResolvedValueOnce([[{ product_id: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([[
+        {
+          product_id: 1,
+          sku: 'SKU001',
+          product_name: 'Laptop Pro',
+          unit_price: 70000,
+          current_stock: 10,
+        },
+      ]]);
+
+    const response = await request(app)
+      .put('/api/products/1')
+      .set('Authorization', `Bearer ${getToken()}`)
+      .send({ product_name: 'Laptop Pro', unit_price: 70000 });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.product_name).toBe('Laptop Pro');
+  });
+
+  test('PUT /api/products/:id should reject negative current_stock', async () => {
+    const response = await request(app)
+      .put('/api/products/1')
+      .set('Authorization', `Bearer ${getToken()}`)
+      .send({ current_stock: -5 });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('current_stock');
+  });
+
   test('GET /api/products/:id should reject invalid id', async () => {
     const response = await request(app)
       .get('/api/products/abc')
@@ -95,6 +175,15 @@ describe('Products routes', () => {
       .set('Authorization', `Bearer ${getToken()}`);
 
     expect(response.status).toBe(404);
+    expect(response.body.success).toBe(false);
+  });
+
+  test('DELETE /api/products/:id should reject staff role with 403', async () => {
+    const response = await request(app)
+      .delete('/api/products/1')
+      .set('Authorization', `Bearer ${getToken('staff')}`);
+
+    expect(response.status).toBe(403);
     expect(response.body.success).toBe(false);
   });
 });

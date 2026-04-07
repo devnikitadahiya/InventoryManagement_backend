@@ -1,5 +1,44 @@
 const db = require('../config/database');
 
+const MAX_TEXT_LENGTH = 255;
+const MAX_SKU_LENGTH = 64;
+const MAX_NUMERIC_VALUE = 1000000000;
+
+const hasUnsafeText = (value) => /[<>]/.test(String(value || ''));
+
+const validateTextField = (value, field, maxLength) => {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    const text = String(value).trim();
+    if (!text) {
+        return `${field} cannot be empty`;
+    }
+
+    if (text.length > maxLength) {
+        return `${field} cannot exceed ${maxLength} characters`;
+    }
+
+    if (hasUnsafeText(text)) {
+        return `${field} contains unsupported characters`;
+    }
+
+    return null;
+};
+
+const validateBoundedNumber = (value, field) => {
+    if (!Number.isFinite(value) || value < 0) {
+        return `${field} must be a valid non-negative number`;
+    }
+
+    if (value > MAX_NUMERIC_VALUE) {
+        return `${field} cannot exceed ${MAX_NUMERIC_VALUE}`;
+    }
+
+    return null;
+};
+
 // =========================================
 // GET ALL PRODUCTS
 // =========================================
@@ -104,6 +143,64 @@ const createProduct = async (req, res) => {
             });
         }
 
+        const skuError = validateTextField(sku, 'sku', MAX_SKU_LENGTH);
+        if (skuError) {
+            return res.status(400).json({ success: false, message: skuError });
+        }
+
+        const productNameError = validateTextField(product_name, 'product_name', MAX_TEXT_LENGTH);
+        if (productNameError) {
+            return res.status(400).json({ success: false, message: productNameError });
+        }
+
+        const parsedUnitPrice = Number(unit_price);
+        const parsedCostPrice = cost_price === undefined || cost_price === null ? null : Number(cost_price);
+        const parsedCurrentStock = current_stock === undefined || current_stock === null ? 0 : Number(current_stock);
+        const parsedReorderLevel = reorder_level === undefined || reorder_level === null ? 10 : Number(reorder_level);
+        const parsedReorderQuantity = reorder_quantity === undefined || reorder_quantity === null ? 50 : Number(reorder_quantity);
+
+        const unitPriceError = validateBoundedNumber(parsedUnitPrice, 'unit_price');
+        if (unitPriceError) {
+            return res.status(400).json({
+                success: false,
+                message: unitPriceError
+            });
+        }
+
+        if (parsedCostPrice !== null) {
+            const costPriceError = validateBoundedNumber(parsedCostPrice, 'cost_price');
+            if (costPriceError) {
+                return res.status(400).json({
+                    success: false,
+                    message: costPriceError
+                });
+            }
+        }
+
+        const currentStockError = validateBoundedNumber(parsedCurrentStock, 'current_stock');
+        if (currentStockError) {
+            return res.status(400).json({
+                success: false,
+                message: currentStockError
+            });
+        }
+
+        const reorderLevelError = validateBoundedNumber(parsedReorderLevel, 'reorder_level');
+        if (reorderLevelError) {
+            return res.status(400).json({
+                success: false,
+                message: reorderLevelError
+            });
+        }
+
+        const reorderQtyError = validateBoundedNumber(parsedReorderQuantity, 'reorder_quantity');
+        if (reorderQtyError) {
+            return res.status(400).json({
+                success: false,
+                message: reorderQtyError
+            });
+        }
+
         const [existingSku] = await db.query(
             'SELECT product_id FROM products WHERE sku = ?',
             [sku]
@@ -137,11 +234,11 @@ const createProduct = async (req, res) => {
                 product_name,
                 description || null,
                 category_id || null,
-                unit_price,
-                cost_price || null,
-                current_stock ?? 0,
-                reorder_level ?? 10,
-                reorder_quantity ?? 50,
+                parsedUnitPrice,
+                parsedCostPrice,
+                parsedCurrentStock,
+                parsedReorderLevel,
+                parsedReorderQuantity,
                 unit_of_measure || 'pieces',
                 createdBy
             ]
@@ -155,8 +252,8 @@ const createProduct = async (req, res) => {
                 sku,
                 product_name,
                 category_id: category_id || null,
-                unit_price,
-                current_stock: current_stock ?? 0
+                unit_price: parsedUnitPrice,
+                current_stock: parsedCurrentStock
             }
         });
     } catch (error) {
@@ -270,6 +367,75 @@ const updateProductById = async (req, res) => {
                 success: false,
                 message: 'Provide at least one valid field to update'
             });
+        }
+
+        if (Object.prototype.hasOwnProperty.call(req.body, 'sku')) {
+            const skuError = validateTextField(req.body.sku, 'sku', MAX_SKU_LENGTH);
+            if (skuError) {
+                return res.status(400).json({ success: false, message: skuError });
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(req.body, 'product_name')) {
+            const productNameError = validateTextField(req.body.product_name, 'product_name', MAX_TEXT_LENGTH);
+            if (productNameError) {
+                return res.status(400).json({ success: false, message: productNameError });
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(req.body, 'unit_price')) {
+            const parsed = Number(req.body.unit_price);
+            const numericError = validateBoundedNumber(parsed, 'unit_price');
+            if (numericError) {
+                return res.status(400).json({
+                    success: false,
+                    message: numericError
+                });
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(req.body, 'cost_price') && req.body.cost_price !== null) {
+            const parsed = Number(req.body.cost_price);
+            const numericError = validateBoundedNumber(parsed, 'cost_price');
+            if (numericError) {
+                return res.status(400).json({
+                    success: false,
+                    message: numericError
+                });
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(req.body, 'current_stock')) {
+            const parsed = Number(req.body.current_stock);
+            const numericError = validateBoundedNumber(parsed, 'current_stock');
+            if (numericError) {
+                return res.status(400).json({
+                    success: false,
+                    message: numericError
+                });
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(req.body, 'reorder_level')) {
+            const parsed = Number(req.body.reorder_level);
+            const numericError = validateBoundedNumber(parsed, 'reorder_level');
+            if (numericError) {
+                return res.status(400).json({
+                    success: false,
+                    message: numericError
+                });
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(req.body, 'reorder_quantity')) {
+            const parsed = Number(req.body.reorder_quantity);
+            const numericError = validateBoundedNumber(parsed, 'reorder_quantity');
+            if (numericError) {
+                return res.status(400).json({
+                    success: false,
+                    message: numericError
+                });
+            }
         }
 
         const [existingProduct] = await db.query(

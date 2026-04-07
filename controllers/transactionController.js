@@ -20,7 +20,7 @@ const recordStockIn = async (req, res) => {
     try {
         const { product_id, quantity, unit_price, reference_number, notes } = req.body;
 
-        if (!product_id || !quantity) {
+        if (product_id === undefined || product_id === null || quantity === undefined || quantity === null) {
             return res.status(400).json({
                 success: false,
                 message: 'product_id and quantity are required'
@@ -80,6 +80,25 @@ const recordStockIn = async (req, res) => {
         const totalAmount = parsedUnitPrice !== null ? parsedUnitPrice * parsedQuantity : null;
         const createdBy = req.user?.id || null;
 
+        const normalizedReference = reference_number ? String(reference_number).trim() : '';
+        if (normalizedReference) {
+            const [duplicateRefRows] = await connection.query(
+                `SELECT transaction_id
+                 FROM transactions
+                 WHERE product_id = ? AND transaction_type = 'in' AND reference_number = ?
+                 LIMIT 1`,
+                [parsedProductId, normalizedReference]
+            );
+
+            if (duplicateRefRows.length > 0) {
+                await connection.rollback();
+                return res.status(409).json({
+                    success: false,
+                    message: 'Duplicate reference_number for stock-in transaction'
+                });
+            }
+        }
+
         const [transactionResult] = await connection.query(
             `INSERT INTO transactions (
                 product_id,
@@ -96,7 +115,7 @@ const recordStockIn = async (req, res) => {
                 parsedQuantity,
                 parsedUnitPrice,
                 totalAmount,
-                reference_number || null,
+                normalizedReference || null,
                 notes || null,
                 createdBy
             ]
@@ -125,7 +144,7 @@ const recordStockIn = async (req, res) => {
                 total_amount: totalAmount,
                 opening_stock: openingStock,
                 closing_stock: closingStock,
-                reference_number: reference_number || null
+                reference_number: normalizedReference || null
             }
         });
     } catch (error) {
@@ -151,7 +170,7 @@ const recordStockOut = async (req, res) => {
     try {
         const { product_id, quantity, unit_price, reference_number, notes } = req.body;
 
-        if (!product_id || !quantity) {
+        if (product_id === undefined || product_id === null || quantity === undefined || quantity === null) {
             return res.status(400).json({
                 success: false,
                 message: 'product_id and quantity are required'
@@ -220,6 +239,25 @@ const recordStockOut = async (req, res) => {
         const totalAmount = parsedUnitPrice !== null ? parsedUnitPrice * parsedQuantity : null;
         const createdBy = req.user?.id || null;
 
+        const normalizedReference = reference_number ? String(reference_number).trim() : '';
+        if (normalizedReference) {
+            const [duplicateRefRows] = await connection.query(
+                `SELECT transaction_id
+                 FROM transactions
+                 WHERE product_id = ? AND transaction_type = 'out' AND reference_number = ?
+                 LIMIT 1`,
+                [parsedProductId, normalizedReference]
+            );
+
+            if (duplicateRefRows.length > 0) {
+                await connection.rollback();
+                return res.status(409).json({
+                    success: false,
+                    message: 'Duplicate reference_number for stock-out transaction'
+                });
+            }
+        }
+
         const [transactionResult] = await connection.query(
             `INSERT INTO transactions (
                 product_id,
@@ -236,7 +274,7 @@ const recordStockOut = async (req, res) => {
                 parsedQuantity,
                 parsedUnitPrice,
                 totalAmount,
-                reference_number || null,
+                normalizedReference || null,
                 notes || null,
                 createdBy
             ]
@@ -265,7 +303,7 @@ const recordStockOut = async (req, res) => {
                 total_amount: totalAmount,
                 opening_stock: openingStock,
                 closing_stock: closingStock,
-                reference_number: reference_number || null
+                reference_number: normalizedReference || null
             }
         });
     } catch (error) {
