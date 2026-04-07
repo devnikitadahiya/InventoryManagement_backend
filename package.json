@@ -8,7 +8,11 @@
     "dev": "nodemon server.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --runInBand"
+    "test:coverage": "jest --coverage --runInBand",
+    "seed:generate": "node scripts/generateSampleData.js",
+    "seed:apply": "node scripts/generateSampleData.js --apply",
+    "seed:generate:deterministic": "node scripts/generateSampleData.js --seed=20260407",
+    "seed:apply:deterministic": "node scripts/generateSampleData.js --apply --seed=20260407"
   },
   "keywords": [],
   "author": "",
