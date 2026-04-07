@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { buildForecast, computeStockoutRisk } = require('../services/forecastService');
+const { runProphetForecast } = require('../services/prophetService');
 
 const ALLOWED_DAYS = new Set([7, 15, 30]);
 const DEFAULT_MIN_DAILY_DEMAND = Number(process.env.FORECAST_MIN_DAILY_DEMAND || 0.25);
@@ -127,7 +128,18 @@ async function getDemandForecast(req, res) {
             [productId]
         );
 
-        const forecast = buildForecast(historyRows, days);
+        let forecastResult;
+        let modelUsed = 'statistical';
+
+        try {
+            forecastResult = await runProphetForecast(productId, days);
+            modelUsed = 'prophet';
+        } catch (prophetError) {
+            console.warn('Prophet unavailable, falling back to statistical model:', prophetError.message);
+            forecastResult = buildForecast(historyRows, days);
+        }
+
+        const forecast = forecastResult;
         const stockoutRisk = normalizeStockoutRisk(
             computeStockoutRisk(Number(product.current_stock || 0), forecast.predictions),
             days
@@ -167,6 +179,7 @@ async function getDemandForecast(req, res) {
                     reorder_level: Number(product.reorder_level || 0),
                 },
                 horizon_days: days,
+                model_used: modelUsed,
                 model_accuracy: forecast.model_accuracy,
                 average_daily_demand: forecast.average_daily_demand,
                 stockout_risk: stockoutRisk,
